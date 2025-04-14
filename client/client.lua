@@ -206,27 +206,66 @@ lib.onCache('vehicle', function(value)
 end)
 
 CreateThread(function()
-    while not exports.ox_inventory or not exports.interact do Wait(500) end
-
+    Wait(10000)
+    
+    if not Config.EnableShop then
+        if Config.Debug then
+            print("[tmf-bag] Shop disabled in config")
+        end
+        return
+    end
+    
+    if not exports.ox_inventory or not exports.interact then
+        print("[tmf-bag] ERROR: Required resources ox_inventory or interact are not available")
+        return
+    end
+    
     local pedModel = `csb_prolsec`
-    local shopCoords = vec4(45.6547, -1748.8419, 29.6013, 50.1399)
-
-    lib.requestModel(pedModel, 100)
-
-    local npc = CreatePed(0, pedModel, shopCoords.x, shopCoords.y, shopCoords.z - 1.0, shopCoords.w, true, true)
+    local shopCoords = Config.ShopLocation
+    
+    if Config.Debug then
+        print("[tmf-bag] Setting up shop at coordinates:", shopCoords.x, shopCoords.y, shopCoords.z)
+    end
+    
+    if not HasModelLoaded(pedModel) then
+        RequestModel(pedModel)
+        while not HasModelLoaded(pedModel) do
+            Wait(10)
+        end
+    end
+    
+    local npc = CreatePed(4, pedModel, shopCoords.x, shopCoords.y, shopCoords.z - 1.0, shopCoords.w, false, false)
+    
+    if not DoesEntityExist(npc) then
+        print("[tmf-bag] ERROR: Failed to create shop NPC")
+        return
+    end
+    
+    SetEntityAsMissionEntity(npc, true, true)
+    SetBlockingOfNonTemporaryEvents(npc, true)
+    SetPedDiesWhenInjured(npc, false)
+    SetPedCanPlayAmbientAnims(npc, true)
+    SetPedCanRagdollFromPlayerImpact(npc, false)
     SetEntityInvincible(npc, true)
-    SetBlockingOfNonTemporaryEvents(npc, true)
     FreezeEntityPosition(npc, true)
-    SetBlockingOfNonTemporaryEvents(npc, true)
-    SetPedKeepTask(npc, true)
+    
+    NetworkRegisterEntityAsNetworked(npc)
+    local netID = NetworkGetNetworkIdFromEntity(npc)
+    SetNetworkIdExistsOnAllMachines(netID, true)
+    SetNetworkIdCanMigrate(netID, false)
+    
+    if Config.Debug then
+        print("[tmf-bag] Shop NPC created with netID:", netID)
+    end
+    
     SetModelAsNoLongerNeeded(pedModel)
-
+    
     local bagShopItems = {
-        { name = 'backpack_l1', label = 'Level 1 Backpack', price = 100, image = Config.BackpackImages[1] },
-        { name = 'backpack_l2', label = 'Level 2 Backpack', price = 250, image = Config.BackpackImages[2] },
-        { name = 'backpack_l3', label = 'Level 3 Backpack', price = 500, image = Config.BackpackImages[3] },
+        { name = 'backpack_l1', label = 'Level 1 Backpack', price = 100 },
+        { name = 'backpack_l2', label = 'Level 2 Backpack', price = 250 },
+        { name = 'backpack_l3', label = 'Level 3 Backpack', price = 500 },
     }
-
+    
     lib.registerContext({
         id = 'bag_shop_context_lib',
         title = 'Backpack Shop',
@@ -236,9 +275,6 @@ CreateThread(function()
                 table.insert(opts, {
                     title = item.label,
                     description = 'Price: $' .. item.price,
-                    icon = 'shopping-bag',
-                    image = item.image,
-                    canSelect = true,
                     onSelect = function()
                         TriggerServerEvent('tmf-bag:buyBag', item.name, item.price)
                     end,
@@ -247,24 +283,57 @@ CreateThread(function()
             return opts
         end)()
     })
-
-    exports.interact:AddEntityInteraction({
-        netId = NetworkGetNetworkIdFromEntity(npc),
-        id = 'bag_shop_npc',
-        name = 'bag_shop',
-        distance = 3.0,
-        interactDst = 1.5,
-        options = {
-            {
-                label = 'Browse Backpacks',
-                icon = 'shopping-bag',
-                action = function(entity, coords, args)
-                    lib.showContext('bag_shop_context_lib')
-                end,
-            },
-        }
-    })
-
+    
+    local interactAvailable = false
+    local success, errorMsg = pcall(function()
+        exports.interact:AddEntityInteraction({
+            netId = netID,
+            id = 'bag_shop_entity',
+            name = 'bag_shop',
+            distance = 3.0,
+            interactDst = 1.5,
+            options = {
+                {
+                    label = 'Browse Backpacks',
+                    action = function(_, _, _)
+                        lib.showContext('bag_shop_context_lib')
+                    end,
+                },
+            }
+        })
+        return true
+    end)
+    
+    if success then
+        interactAvailable = true
+        if Config.Debug then
+            print("[tmf-bag] Interaction registered successfully")
+        end
+    else
+        if Config.Debug then
+            print("[tmf-bag] Failed to register interaction with interact:", errorMsg)
+        end
+        
+        pcall(function()
+            exports.interact:AddInteraction({
+                coords = vector3(shopCoords.x, shopCoords.y, shopCoords.z),
+                id = 'bag_shop_location',
+                name = 'bag_shop',
+                distance = 3.0,
+                interactDst = 1.5,
+                options = {
+                    {
+                        label = 'Browse Backpacks',
+                        action = function(_, _, _)
+                            lib.showContext('bag_shop_context_lib')
+                        end,
+                    },
+                }
+            })
+            interactAvailable = true
+        end)
+    end
+    
     local blip = AddBlipForCoord(shopCoords.x, shopCoords.y, shopCoords.z)
     SetBlipSprite(blip, 351)
     SetBlipScale(blip, 0.8)
@@ -273,4 +342,50 @@ CreateThread(function()
     BeginTextCommandSetBlipName("STRING")
     AddTextComponentString("Backpack Shop")
     EndTextCommandSetBlipName(blip)
+    
+    if Config.Debug then
+        print("[tmf-bag] Shop setup complete!")
+    end
+    
+    if not interactAvailable then
+        if Config.Debug then
+            print("[tmf-bag] Interact not available, using 3D text fallback")
+        end
+        
+        CreateThread(function()
+            while true do
+                local sleep = 1000
+                local playerPed = PlayerPedId()
+                local playerCoords = GetEntityCoords(playerPed)
+                local dist = #(playerCoords - vector3(shopCoords.x, shopCoords.y, shopCoords.z))
+                
+                if dist < 3.0 then
+                    sleep = 0
+                    DrawText3D(shopCoords.x, shopCoords.y, shopCoords.z, "Press ~g~E~w~ to browse backpacks")
+                    
+                    if dist < 1.5 and IsControlJustReleased(0, 38) then
+                        lib.showContext('bag_shop_context_lib')
+                    end
+                end
+                
+                Wait(sleep)
+            end
+        end)
+    end
 end)
+
+function DrawText3D(x, y, z, text)
+    local onScreen, _x, _y = World3dToScreen2d(x, y, z)
+    local px, py, pz = table.unpack(GetGameplayCamCoords())
+    
+    if onScreen then
+        SetTextScale(0.35, 0.35)
+        SetTextFont(4)
+        SetTextProportional(1)
+        SetTextColour(255, 255, 255, 215)
+        SetTextEntry("STRING")
+        SetTextCentre(1)
+        AddTextComponentString(text)
+        DrawText(_x, _y)
+    end
+end

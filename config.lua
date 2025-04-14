@@ -6,12 +6,18 @@ Config.EnableMoneyCheck = true -- Set to true to require payment for bags
 Config.MoneyResourceName = 'qb-core' -- Common frameworks: 'qb-core', 'es_extended', or your custom money resource
 Config.GetMoneyExport = 'GetPlayerData' -- For QBCore typically: 'GetPlayerData'
 Config.RemoveMoneyExport = 'RemoveMoney' -- For QBCore typically: 'RemoveMoney'
+Config.AddMoneyExport = 'AddMoney' -- For QBCore typically: 'AddMoney'
 Config.MoneyAccountName = 'cash' -- Most common: 'cash', 'money', or 'bank'
 
 Config.checkForUpdates = false -- Set to false if using standalone
 
 Config.OneBagInInventory = true -- Allow only one bag in inventory?
+Config.NetworkBackpacks = true -- When true, backpacks are visible to all players
+Config.EnableShop = true -- Set to true to enable the backpack shop
 Config.Debug = false -- Set to true to enable debug output
+
+-- Shop location
+Config.ShopLocation = vec4(45.6547, -1748.8419, 29.6013, 50.1399) -- x, y, z, heading
 
 Config.BackpackStorage = {
     [1] = { slots = 8, weight = 10000 }, -- Level 1 Bag
@@ -23,13 +29,6 @@ Config.BackpackProps = {
     [1] = 'prop_michael_backpack', -- Level 1 - Small Backpack
     [2] = 'p_michael_backpack_s',  -- Level 2 - Medium Backpack 
     [3] = 'prop_cs_duffel_01b'     -- Level 3 - Duffle Bag
-}
-
--- Define images for each backpack level
-Config.BackpackImages = {
-    [1] = 'backpack_l1.png',  -- Level 1 image
-    [2] = 'backpack_medium.png', -- Level 2 image 
-    [3] = 'backpack_l3.png'       -- Level 3 image
 }
 
 -- You can customize the position/rotation of specific props if needed
@@ -50,7 +49,15 @@ Config.PropAdjustments = {
 }
 
 Strings = { -- Notification strings
-    action_incomplete = 'Action Incomplete',
-    one_backpack_only = 'You can only have 1x backpack!',
-    backpack_in_backpack = 'You can\'t place a backpack within another!',
+    action_incomplete = 'Unable to Complete Action',
+    one_backpack_only = 'You can only carry one backpack at a time!',
+    backpack_in_backpack = 'You cannot store a backpack inside another backpack!',
+    purchase_success = 'Purchase Complete',
+    purchase_failed = 'Purchase Failed',
+    purchase_no_money = 'Not Enough Money',
+    money_refunded = 'Money Refunded',
+    item_received = 'Item Received',
+    bag_level1 = 'Small Backpack',
+    bag_level2 = 'Medium Backpack',
+    bag_level3 = 'Large Backpack',
 }
